@@ -1,0 +1,10 @@
+syntax = "All"
+line_endings = "Unix"
+indent_type = "Tabs"
+indent_width = 4
+collapse_simple_statement = "Never"
+space_after_function_names = "Never"
+trim_trailing_whitespace = true
+
+[sort_requires]
+enabled = false
