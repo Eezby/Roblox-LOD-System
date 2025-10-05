@@ -1,11 +1,7 @@
 [package]
-name = "beshs/tag"
-version = "0.1.0"
+name = "eezby/lodsystem"
+version = "0.0.3"
+license = "MIT"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
-
-[dependencies]
-Signal = "stravant/goodsignal@0.1.1"
-Trove = "sleitnick/trove@1.4.0"
-Component = "sleitnick/component@2.4.8"
-Promise = "evaera/promise@4.0.0"
+exclude = ["aftman.toml", "selene.toml", "stylua.toml", "src", "default.project.json", "README.md", ".gitignore", "Packages"]

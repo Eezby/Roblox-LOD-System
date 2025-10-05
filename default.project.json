@@ -9,6 +9,10 @@
       "Packages": {
         "$path": "./Packages",
         "$ignoreUnknownInstances": true
+      },
+      "LODSystem": {
+        "$path": "src/LODSystem",
+        "$ignoreUnknownInstances": true
       }
     },
 

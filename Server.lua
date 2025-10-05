@@ -16,6 +16,9 @@ LODSystemServer.Remote = nil
 LODSystemServer.Ran = false
 LODSystemServer.Debug = false
 LODSystemServer.Configuration = nil
+LODSystemServer.Modules = {
+    Configuration = Configuration,
+}
 
 local function debugPrint(...)
     if not LODSystemServer.Debug then return end
@@ -28,7 +31,7 @@ function LODSystemServer.Initialize(configuration: Configuration.LODSystemConfig
         error("LODSystem.Server.FrameworkStart can only be called on the server")
     end
 
-    if workspace.ModelStreamingBehavior == Enum.ModelStreamingBehavior.Improved then
+    if workspace.ModelStreamingMode == Enum.ModelStreamingBehavior.Improved then
         error("LODSystem.Server.FrameworkStart can only be called if the ModelStreamingBehavior is on Default or Legacy")
     end
 
