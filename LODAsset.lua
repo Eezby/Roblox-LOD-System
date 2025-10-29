@@ -6,6 +6,8 @@ local LODAsset = {}
 LODAsset.__index = LODAsset
 
 local function createDetectorPart(asset: Model)
+    local customStreamInDistance = asset:GetAttribute("StreamInDistance")
+
     local detectorPart = Instance.new("Part")
     detectorPart.Name = `{asset.Name}_StreamDetector`
     detectorPart.CanCollide = false
@@ -15,6 +17,17 @@ local function createDetectorPart(asset: Model)
     detectorPart:PivotTo(asset:GetPivot())
     detectorPart:AddTag("LODSystemStreamDetector")
     detectorPart:SetAttribute("LODAssetID", asset:GetAttribute("LODAssetID"))
+
+    if customStreamInDistance then
+        local proximityPrompt = Instance.new("ProximityPrompt")
+        proximityPrompt.Name = `CustomProximity`
+        proximityPrompt.ActionText = ""
+        proximityPrompt.ObjectText = ""
+        proximityPrompt.RequiresLineOfSight = false
+        proximityPrompt.Style = Enum.ProximityPromptStyle.Custom
+        proximityPrompt.ClickablePrompt = false
+        proximityPrompt.Parent = detectorPart
+    end
 
     detectorPart.Parent = workspace
 
@@ -40,7 +53,7 @@ function LODAsset.new(asset: Model)
     self.asset:SetAttribute("LODAssetID", self.guid)
     self.detectorAsset = createDetectorPart(asset)
 
-    for _,lod in self.asset.LODs:GetChildren() do
+for _,lod in self.asset.LODs:GetChildren() do
         local lodVersion = LODVersion.new(lod)
         self.lodVersions[lodVersion.qualityVersion] = lodVersion
     end

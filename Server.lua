@@ -16,7 +16,6 @@ LODSystemServer.Remote = nil
 LODSystemServer.Ran = false
 LODSystemServer.Debug = false
 LODSystemServer.Configuration = nil
-LODSystemServer.Initialized = false
 LODSystemServer.Modules = {
     Configuration = Configuration,
 }
@@ -24,12 +23,6 @@ LODSystemServer.Modules = {
 local function debugPrint(...)
     if not LODSystemServer.Debug then return end
     print("🟢[LODSystemServer] ", ...)
-end
-
-local function waitUntilInitialized()
-    while not LODSystemServer.Initialized do
-        task.wait(0.1)
-    end
 end
 
 function LODSystemServer.Initialize(configuration: Configuration.LODSystemConfiguration?)
@@ -73,6 +66,16 @@ function LODSystemServer.Initialize(configuration: Configuration.LODSystemConfig
         end
     end)
 
+    Players.PlayerAdded:Connect(function(player: Player)
+        for _,lodAsset in LODSystemServer.LODAssets do
+            for _,lod in lodAsset:GetLods() do
+                if lod.qualityVersion == Constants.PERSISTANT_QUALITY_VERSION then
+                    lod.asset:AddPersistentPlayer(player)
+                end
+            end
+        end
+    end)
+
     if not configuration then
         configuration = Configuration.new()
     end
@@ -83,26 +86,31 @@ function LODSystemServer.Initialize(configuration: Configuration.LODSystemConfig
     Constants.PERSISTANT_QUALITY_VERSION = configuration.persistantQualityVersion
 
     LODSystemServer.Setup()
-    LODSystemServer.Initialized = true
 end
 
 function LODSystemServer.Setup()
     local lodAssets = CollectionService:GetTagged(Constants.LOD_ASSET_COLLECTION_SERVICE_TAG)
 
     for _,asset in lodAssets do
+        if not asset:IsDescendantOf(workspace) then
+            continue
+        end
+
         local lodAsset = LODAsset.new(asset)
         LODSystemServer.LODAssets[lodAsset.guid] = lodAsset
 
         for _,lod in lodAsset:GetLods() do
-            if lod.qualityVersion == Constants.PERSISTANT_QUALITY_VERSION then
-                continue
-            end
-
             if not LODSystemServer.VersionGrids[lod.qualityVersion] then
                 LODSystemServer.VersionGrids[lod.qualityVersion] = LODGrid.new(lod.qualityVersion)
             end
 
-            LODSystemServer.VersionGrids[lod.qualityVersion]:StoreAssetLODVersion(lod)
+            if lod.qualityVersion ~= Constants.PERSISTANT_QUALITY_VERSION then
+                LODSystemServer.VersionGrids[lod.qualityVersion]:StoreAssetLODVersion(lod)
+            else
+                for _,player in Players:GetPlayers() do
+                    lod.asset:AddPersistentPlayer(player)
+                end
+            end
         end
     end
 

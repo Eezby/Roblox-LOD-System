@@ -1,6 +1,6 @@
 [package]
 name = "eezby/lodsystem"
-version = "0.0.3"
+version = "0.0.6"
 license = "MIT"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"

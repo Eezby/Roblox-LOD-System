@@ -14,6 +14,7 @@ LODSystemClient.Configuration = nil
 LODSystemClient.Modules = {
     Configuration = Configuration,
 }
+LODSystemClient.TriggerConnections = {}
 
 local function debugPrint(...)
     if not LODSystemClient.Debug then return end
@@ -51,7 +52,7 @@ end
 -- Called by client to setup the LODSystem, loads the initial asset versions and sets up listeners for stream detectors
 function LODSystemClient.Setup()
     CollectionService:GetInstanceAddedSignal("LODSystemStreamDetector"):Connect(function(detector: Part)
-        LODSystemClient.LoadLODAssetVersion(detector:GetAttribute("LODAssetID"), LODSystemClient.GetQualityVersion())
+        LODSystemClient.TryLoadLODAssetVersion(detector, LODSystemClient.GetQualityVersion())
     end)
 
     CollectionService:GetInstanceRemovedSignal("LODSystemStreamDetector"):Connect(function(detector: Part)
@@ -59,16 +60,35 @@ function LODSystemClient.Setup()
     end)
 
     for _,detector in CollectionService:GetTagged("LODSystemStreamDetector") do
-        task.spawn(LODSystemClient.LoadLODAssetVersion, detector:GetAttribute("LODAssetID"), LODSystemClient.GetQualityVersion())
+        task.spawn(LODSystemClient.TryLoadLODAssetVersion, detector, LODSystemClient.GetQualityVersion())
     end
 
     debugPrint("LODSystemClient.Setup()")
 end
 
+function LODSystemClient.TryLoadLODAssetVersion(detector: Instance, qualityVersion: number)
+    local id = detector:GetAttribute("LODAssetID")
+
+    local customProximity = detector:FindFirstChild("CustomProximity")
+    if customProximity then
+        if LODSystemClient.TriggerConnections[id] then
+            return
+        end
+
+        LODSystemClient.TriggerConnections[id] = customProximity.PromptShown:Connect(function()
+            LODSystemClient.LoadLODAssetVersion(id, qualityVersion)
+        end)
+
+        return
+    else
+        LODSystemClient.LoadLODAssetVersion(id, qualityVersion)
+    end
+end
+
 -- Called by client to load the asset version, fires a remote event to the server
 -- Client waits for the asset to appear before confirming that the asset has been streamed in
 function LODSystemClient.LoadLODAssetVersion(id: string, qualityVersion: number)
-    debugPrint(`Loading asset {id} [{qualityVersion}]`)
+    debugPrint(`Loading asset {id} [{qualityVersion}]`, debug.traceback())
 
     LODSystemClient.Remote:FireServer("RequestStreamIn", id, qualityVersion)
 
@@ -92,6 +112,16 @@ end
 -- Called by client when the stream detector streams out
 -- Replaces the existing asset with the persistent version
 function LODSystemClient.UnloadLODAssetVersion(id: string)
+    if LODSystemClient.TriggerConnections[id] then
+        LODSystemClient.TriggerConnections[id]:Disconnect()
+        LODSystemClient.TriggerConnections[id] = nil
+    end
+
+    local existingLODVersion = LODSystemClient.GetLODAsset(id)
+    if existingLODVersion and existingLODVersion.LODs:FindFirstChild(LODSystemClient.GetQualityVersion()) then
+        existingLODVersion:PivotTo(CFrame.new(0,math.random(100000, 10000000),0))
+    end
+
     local persistentLODVersion = LODSystemClient.GetLODVersion(id, Constants.PERSISTANT_QUALITY_VERSION)
     if not persistentLODVersion then
         LODSystemClient.LoadLODAssetVersion(id, Constants.PERSISTANT_QUALITY_VERSION)
