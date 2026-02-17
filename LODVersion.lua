@@ -16,7 +16,7 @@ function LODVersion.new(asset: Model)
         asset = asset,
         qualityVersion = tonumber(asset.Name),
         guid = HttpService:GenerateGUID(false),
-        replicationFocusPart = asset.PrimaryPart or asset:FindFirstChildWhichIsA("BasePart")
+        replicationFocusPart = asset.PrimaryPart or asset:FindFirstChildWhichIsA("BasePart", true)
     }, LODVersion)
 
     self.asset:SetAttribute("LODVersionID", self.guid)

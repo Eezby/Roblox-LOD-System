@@ -23,9 +23,10 @@ function LODGrid:StoreAssetLODVersion(lodVersion: any)
         error(`Asset version does not match grid quality version: {lodVersion.asset:GetFullName()}`)
     end
 
-    local gridPosition = self.originVector
-        + Vector3.new(self.index % 2, self.index % 2, self.index % 2)
-        * Constants.ASSET_SPACING
+    local x = self.index % Constants.GRID_WIDTH
+    local y = math.floor(self.index / Constants.GRID_WIDTH) % Constants.GRID_WIDTH
+    local z = math.floor(self.index / (Constants.GRID_WIDTH * Constants.GRID_WIDTH))
+    local gridPosition = self.originVector + Vector3.new(x, y, z) * Constants.ASSET_SPACING
 
     lodVersion.asset:PivotTo(CFrame.new(gridPosition))
 
