@@ -58,8 +58,8 @@ function LODSystemServer.Initialize(configuration: Configuration.LODSystemConfig
 
     Players.PlayerRemoving:Connect(function(player: Player)
         if LODSystemServer.DelayedPersistentRemovalTasks[player] then
-            for _,task in LODSystemServer.DelayedPersistentRemovalTasks[player] do
-                task.cancel(task)
+            for _, delayedTask in LODSystemServer.DelayedPersistentRemovalTasks[player] do
+                task.cancel(delayedTask)
             end
 
             LODSystemServer.DelayedPersistentRemovalTasks[player] = nil
