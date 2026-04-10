@@ -3,6 +3,18 @@ local HttpService = game:GetService("HttpService")
 local LODVersion = {}
 LODVersion.__index = LODVersion
 
+local ORIGINAL_CFRAME_ATTRIBUTE_NAME = "OriginalCFrame"
+
+local function setOriginalCFrameAttributes(asset: Model)
+	for _, descendant in asset:GetDescendants() do
+		if not descendant:IsA("BasePart") then
+			continue
+		end
+
+		descendant:SetAttribute(ORIGINAL_CFRAME_ATTRIBUTE_NAME, descendant.CFrame)
+	end
+end
+
 function LODVersion.new(asset: Model)
     if not asset:IsA("Model") then
         error(`Asset is not a model: {asset:GetFullName()}`)
@@ -20,7 +32,7 @@ function LODVersion.new(asset: Model)
     }, LODVersion)
 
     self.asset:SetAttribute("LODVersionID", self.guid)
-    self.asset:SetAttribute("OriginalCFrame", self.asset:GetPivot())
+    setOriginalCFrameAttributes(self.asset)
 
     return self
 end

@@ -11,14 +11,70 @@ LODSystemClient.Remote = nil
 LODSystemClient.Ran = false
 LODSystemClient.Debug = false
 LODSystemClient.Configuration = nil
+LODSystemClient.RestoreConnections = {}
 LODSystemClient.Modules = {
     Configuration = Configuration,
 }
 LODSystemClient.TriggerConnections = {}
 
+local ORIGINAL_CFRAME_ATTRIBUTE_NAME = "OriginalCFrame"
+local RANDOM_HIDE_MIN_Y = 100_000
+local RANDOM_HIDE_MAX_Y = 10_000_000
+local PERSISTENT_HIDE_CFRAME = CFrame.new(0, 1_000_000, 0)
+
 local function debugPrint(...)
     if not LODSystemClient.Debug then return end
     print("🔵[LODSystemClient] ", ...)
+end
+
+local function restoreBasePartCFrame(basePart: BasePart): boolean
+    local originalCFrame = basePart:GetAttribute(ORIGINAL_CFRAME_ATTRIBUTE_NAME)
+    if originalCFrame == nil then
+        return false
+    end
+
+    basePart.CFrame = originalCFrame
+    return true
+end
+
+local function restoreBasePartCFrames(lodVersion: Model): number
+    local restoredPartCount = 0
+
+    for _, descendant in lodVersion:GetDescendants() do
+        if not descendant:IsA("BasePart") then
+            continue
+        end
+
+        if restoreBasePartCFrame(descendant) then
+            restoredPartCount += 1
+        end
+    end
+
+    return restoredPartCount
+end
+
+local function stopRestoringLODVersion(lodVersion: Model)
+    local restoreConnection = LODSystemClient.RestoreConnections[lodVersion]
+    if not restoreConnection then
+        return
+    end
+
+    restoreConnection:Disconnect()
+    LODSystemClient.RestoreConnections[lodVersion] = nil
+end
+
+local function restoreLODVersion(lodVersion: Model)
+    stopRestoringLODVersion(lodVersion)
+
+    restoreBasePartCFrames(lodVersion)
+
+    LODSystemClient.RestoreConnections[lodVersion] = lodVersion.DescendantAdded:Connect(function(descendant: Instance)
+        if not descendant:IsA("BasePart") then
+            return
+        end
+
+        restoreBasePartCFrame(descendant)
+    end)
 end
 
 function LODSystemClient.Initialize(configuration: Configuration.LODSystemConfiguration?)
@@ -104,7 +160,7 @@ function LODSystemClient.LoadLODAssetVersion(id: string, qualityVersion: number)
     end
 
     LODSystemClient.HidePersistentLODAsset(id)
-    existingLODVersion:PivotTo(existingLODVersion:GetAttribute("OriginalCFrame"))
+    restoreLODVersion(existingLODVersion)
 
     LODSystemClient.Remote:FireServer("ConfirmStreamIn", id, qualityVersion)
 end
@@ -117,9 +173,15 @@ function LODSystemClient.UnloadLODAssetVersion(id: string)
         LODSystemClient.TriggerConnections[id] = nil
     end
 
-    local existingLODVersion = LODSystemClient.GetLODAsset(id)
-    if existingLODVersion and existingLODVersion.LODs:FindFirstChild(LODSystemClient.GetQualityVersion()) then
-        existingLODVersion:PivotTo(CFrame.new(0,math.random(100000, 10000000),0))
+    local asset = LODSystemClient.GetLODAsset(id)
+    local existingLODVersion = nil
+    if asset then
+        existingLODVersion = asset.LODs:FindFirstChild(LODSystemClient.GetQualityVersion())
+    end
+
+    if asset and existingLODVersion then
+        stopRestoringLODVersion(existingLODVersion)
+        asset:PivotTo(CFrame.new(0, math.random(RANDOM_HIDE_MIN_Y, RANDOM_HIDE_MAX_Y), 0))
     end
 
     local persistentLODVersion = LODSystemClient.GetLODVersion(id, Constants.PERSISTANT_QUALITY_VERSION)
@@ -137,7 +199,8 @@ function LODSystemClient.HidePersistentLODAsset(id: string)
     local lodVersion = LODSystemClient.GetLODVersion(id, Constants.PERSISTANT_QUALITY_VERSION)
     if not lodVersion then return end
 
-    lodVersion:PivotTo(CFrame.new(0, 1000000, 0))
+    stopRestoringLODVersion(lodVersion)
+    lodVersion:PivotTo(PERSISTENT_HIDE_CFRAME)
     debugPrint(`Hidden persistent asset {id}`)
 end
 
@@ -147,7 +210,7 @@ function LODSystemClient.ShowPersistentLODAsset(id: string)
     local lodVersion = LODSystemClient.GetLODVersion(id, Constants.PERSISTANT_QUALITY_VERSION)
     if not lodVersion then return end
 
-    lodVersion:PivotTo(lodVersion:GetAttribute("OriginalCFrame"))
+    restoreLODVersion(lodVersion)
     debugPrint(`Shown persistent asset {id}`)
 end
 
