@@ -7,6 +7,18 @@ local function generateGridOriginVector(qualityVersion: number)
     return Constants.GRID_ORIGINS[qualityVersion]
 end
 
+local function collapseLODVersionToGridPosition(lodVersion: any, gridPosition: Vector3)
+    local targetCFrame = CFrame.new(gridPosition)
+
+    for _, descendant in lodVersion.asset:GetDescendants() do
+        if not descendant:IsA("BasePart") then
+            continue
+        end
+
+        descendant.CFrame = targetCFrame
+    end
+end
+
 function LODGrid.new(qualityVersion: number)
     local self = setmetatable({
         qualityVersion = qualityVersion,
@@ -28,7 +40,7 @@ function LODGrid:StoreAssetLODVersion(lodVersion: any)
     local z = math.floor(self.index / (Constants.GRID_WIDTH * Constants.GRID_WIDTH))
     local gridPosition = self.originVector + Vector3.new(x, y, z) * Constants.ASSET_SPACING
 
-    lodVersion.asset:PivotTo(CFrame.new(gridPosition))
+    collapseLODVersionToGridPosition(lodVersion, gridPosition)
 
     self.index += 1
 end
