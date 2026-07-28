@@ -16,6 +16,7 @@ LODSystemClient.Modules = {
     Configuration = Configuration,
 }
 LODSystemClient.TriggerConnections = {}
+LODSystemClient.LoadedQualityVersions = {}
 
 local ORIGINAL_CFRAME_ATTRIBUTE_NAME = "OriginalCFrame"
 local RANDOM_HIDE_MIN_Y = 100_000
@@ -149,9 +150,9 @@ function LODSystemClient.LoadLODAssetVersion(id: string, qualityVersion: number)
     LODSystemClient.Remote:FireServer("RequestStreamIn", id, qualityVersion)
 
     local asset = LODSystemClient.GetLODAsset(id)
-    local existingLODVersion = asset.LODs:FindFirstChild(qualityVersion)
+    local existingLODVersion = asset.LODs:FindFirstChild(tostring(qualityVersion))
     if not existingLODVersion then
-        existingLODVersion = asset.LODs:WaitForChild(qualityVersion, Constants.MAX_STREAM_WAIT_TIME)
+        existingLODVersion = asset.LODs:WaitForChild(tostring(qualityVersion), Constants.MAX_STREAM_WAIT_TIME)
 
         if not existingLODVersion then
             warn(`Asset {id} [{qualityVersion}] did not appear after {Constants.MAX_STREAM_WAIT_TIME} seconds`)
@@ -161,6 +162,7 @@ function LODSystemClient.LoadLODAssetVersion(id: string, qualityVersion: number)
 
     LODSystemClient.HidePersistentLODAsset(id)
     restoreLODVersion(existingLODVersion)
+    LODSystemClient.LoadedQualityVersions[id] = qualityVersion
 
     LODSystemClient.Remote:FireServer("ConfirmStreamIn", id, qualityVersion)
 end
@@ -173,10 +175,13 @@ function LODSystemClient.UnloadLODAssetVersion(id: string)
         LODSystemClient.TriggerConnections[id] = nil
     end
 
+    local loadedQualityVersion = LODSystemClient.LoadedQualityVersions[id]
+    LODSystemClient.LoadedQualityVersions[id] = nil
+
     local asset = LODSystemClient.GetLODAsset(id)
     local existingLODVersion = nil
-    if asset then
-        existingLODVersion = asset.LODs:FindFirstChild(LODSystemClient.GetQualityVersion())
+    if asset and loadedQualityVersion then
+        existingLODVersion = asset.LODs:FindFirstChild(tostring(loadedQualityVersion))
     end
 
     if asset and existingLODVersion then
@@ -227,10 +232,10 @@ end
 
 function LODSystemClient.GetLODVersion(id: string, qualityVersion: number)
     local asset = LODSystemClient.GetLODAsset(id)
-    return asset.LODs:FindFirstChild(qualityVersion)
+    return asset.LODs:FindFirstChild(tostring(qualityVersion))
 end
 
-function LODSystemClient.GetQualityVersion()
+function LODSystemClient.GetQualityVersion(): number
     return LODSystemClient.Configuration.getPlayerAssetQualityCallback(Players.LocalPlayer)
 end
 

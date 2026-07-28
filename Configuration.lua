@@ -2,7 +2,7 @@ local Configuration = {}
 Configuration.__index = Configuration
 
 export type LODSystemConfiguration = {
-    callback: (...any) -> number,
+    getPlayerAssetQualityCallback: (Player) -> number,
     maxStreamWaitTime: number,
     persistantQualityVersion: number,
     lodAssetCollectionServiceTag: string
@@ -18,7 +18,9 @@ function Configuration.new()
     return self
 end
 
-function Configuration:GetPlayerAssetQualityCallback(callback: (...any) -> number)
+-- Returns the quality version the given player should load. Every tagged asset is expected to
+-- provide the returned version, and the persistent version is used while an asset is streamed out.
+function Configuration:GetPlayerAssetQualityCallback(callback: (Player) -> number)
     self.getPlayerAssetQualityCallback = callback
     return self
 end

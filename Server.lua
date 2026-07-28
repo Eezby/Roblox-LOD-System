@@ -125,7 +125,10 @@ function LODSystemServer.LoadLODAssetVersion(player: Player, assetId: string, qu
     if not asset then return end
 
     local lod = asset:GetLod(qualityVersion)
-    if not lod then return end
+    if not lod then
+        debugPrint(`Asset {assetId} does not have quality version {qualityVersion}`)
+        return
+    end
 
     if qualityVersion == Constants.PERSISTANT_QUALITY_VERSION then
         lod.asset:AddPersistentPlayer(player)

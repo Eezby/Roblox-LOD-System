@@ -4,7 +4,7 @@ local LODGrid = {}
 LODGrid.__index = LODGrid
 
 local function generateGridOriginVector(qualityVersion: number)
-    return Constants.GRID_ORIGINS[qualityVersion]
+    return Constants.GetGridOrigin(qualityVersion)
 end
 
 local function collapseLODVersionToGridPosition(lodVersion: any, gridPosition: Vector3)
