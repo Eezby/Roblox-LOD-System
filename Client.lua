@@ -23,6 +23,80 @@ local RANDOM_HIDE_MIN_Y = 100_000
 local RANDOM_HIDE_MAX_Y = 10_000_000
 local PERSISTENT_HIDE_CFRAME = CFrame.new(0, 1_000_000, 0)
 
+type LODAssetRecord = {
+    asset: Instance,
+    lods: Instance?,
+}
+
+-- Registry of live LOD assets, keyed by their replicated LODAssetID attribute.
+-- Replaces the O(N) CollectionService:GetTagged scan that GetLODAsset used to do.
+local assetsById: { [string]: LODAssetRecord } = {}
+local idsByAsset: { [Instance]: string } = {}
+local pendingIdConnections: { [Instance]: RBXScriptConnection } = {}
+
+-- The LODs folder is resolved lazily: with streaming enabled the asset can be
+-- tagged before its children arrive, and can lose them again on stream-out.
+local function getLODsFolder(record: LODAssetRecord): Instance?
+    local lods = record.lods
+    if lods and lods.Parent then
+        return lods
+    end
+
+    lods = record.asset:FindFirstChild("LODs")
+    record.lods = lods
+    return lods
+end
+
+local function registerLODAsset(asset: Instance)
+    local id = asset:GetAttribute("LODAssetID")
+
+    -- Defensive: the server stamps LODAssetID at runtime, so in principle the
+    -- tag can land before the attribute. Back-fill if that happens.
+    if id == nil then
+        if pendingIdConnections[asset] then
+            return
+        end
+
+        pendingIdConnections[asset] = asset:GetAttributeChangedSignal("LODAssetID"):Connect(function()
+            local connection = pendingIdConnections[asset]
+            pendingIdConnections[asset] = nil
+
+            if connection then
+                connection:Disconnect()
+            end
+
+            registerLODAsset(asset)
+        end)
+
+        return
+    end
+
+    idsByAsset[asset] = id
+    assetsById[id] = { asset = asset, lods = nil }
+end
+
+local function unregisterLODAsset(asset: Instance)
+    local connection = pendingIdConnections[asset]
+    if connection then
+        connection:Disconnect()
+        pendingIdConnections[asset] = nil
+    end
+
+    local id = idsByAsset[asset]
+    if id == nil then
+        return
+    end
+
+    idsByAsset[asset] = nil
+
+    -- Only clear the id if it still resolves to this instance; a replacement
+    -- may already have claimed it on a stream-out/stream-in overlap.
+    local record = assetsById[id]
+    if record and record.asset == asset then
+        assetsById[id] = nil
+    end
+end
+
 local function debugPrint(...)
     if not LODSystemClient.Debug then return end
     print("🔵[LODSystemClient] ", ...)
@@ -108,6 +182,17 @@ end
 
 -- Called by client to setup the LODSystem, loads the initial asset versions and sets up listeners for stream detectors
 function LODSystemClient.Setup()
+    local assetTag = Constants.LOD_ASSET_COLLECTION_SERVICE_TAG
+
+    -- Connect before the initial sweep so nothing tagged in between is missed.
+    -- This must run before the detector sweep below, which resolves assets by id.
+    CollectionService:GetInstanceAddedSignal(assetTag):Connect(registerLODAsset)
+    CollectionService:GetInstanceRemovedSignal(assetTag):Connect(unregisterLODAsset)
+
+    for _, asset in CollectionService:GetTagged(assetTag) do
+        registerLODAsset(asset)
+    end
+
     CollectionService:GetInstanceAddedSignal("LODSystemStreamDetector"):Connect(function(detector: Part)
         LODSystemClient.TryLoadLODAssetVersion(detector, LODSystemClient.GetQualityVersion())
     end)
@@ -149,10 +234,22 @@ function LODSystemClient.LoadLODAssetVersion(id: string, qualityVersion: number)
 
     LODSystemClient.Remote:FireServer("RequestStreamIn", id, qualityVersion)
 
-    local asset = LODSystemClient.GetLODAsset(id)
-    local existingLODVersion = asset.LODs:FindFirstChild(tostring(qualityVersion))
+    local record = assetsById[id]
+    if not record then
+        warn(`No LOD asset registered for id {id}`)
+        return
+    end
+
+    local lods = getLODsFolder(record)
+    if not lods then
+        warn(`LOD asset {id} has no LODs folder`)
+        return
+    end
+
+    local versionName = tostring(qualityVersion)
+    local existingLODVersion = lods:FindFirstChild(versionName)
     if not existingLODVersion then
-        existingLODVersion = asset.LODs:WaitForChild(tostring(qualityVersion), Constants.MAX_STREAM_WAIT_TIME)
+        existingLODVersion = lods:WaitForChild(versionName, Constants.MAX_STREAM_WAIT_TIME)
 
         if not existingLODVersion then
             warn(`Asset {id} [{qualityVersion}] did not appear after {Constants.MAX_STREAM_WAIT_TIME} seconds`)
@@ -219,20 +316,23 @@ function LODSystemClient.ShowPersistentLODAsset(id: string)
     debugPrint(`Shown persistent asset {id}`)
 end
 
-function LODSystemClient.GetLODAsset(id: string)
-    local lodAssets = CollectionService:GetTagged(Constants.LOD_ASSET_COLLECTION_SERVICE_TAG)
-    for _,asset in lodAssets do
-        if asset:GetAttribute("LODAssetID") == id then
-            return asset
-        end
-    end
-
-    return nil
+function LODSystemClient.GetLODAsset(id: string): Instance?
+    local record = assetsById[id]
+    return record and record.asset or nil
 end
 
-function LODSystemClient.GetLODVersion(id: string, qualityVersion: number)
-    local asset = LODSystemClient.GetLODAsset(id)
-    return asset.LODs:FindFirstChild(tostring(qualityVersion))
+function LODSystemClient.GetLODVersion(id: string, qualityVersion: number): Instance?
+    local record = assetsById[id]
+    if not record then
+        return nil
+    end
+
+    local lods = getLODsFolder(record)
+    if not lods then
+        return nil
+    end
+
+    return lods:FindFirstChild(tostring(qualityVersion))
 end
 
 function LODSystemClient.GetQualityVersion(): number
